@@ -25,7 +25,7 @@ export function money(n: number, cur: string) {
 export type Case = {
   id: string; createdAt: number; currency: string; photo: string; thumb: string;
   diagnosis: Diagnosis; done: boolean[]; checks: Record<number, { status: string; advice: string; observations: string[] }>;
-  after?: string; mendedAt?: number;
+  after?: string; mendedAt?: number; model?: string;
 };
 
 const KEY = "mendoscope.cases.v1";

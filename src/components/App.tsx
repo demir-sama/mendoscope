@@ -50,8 +50,8 @@ export default function App() {
     setPhoto(dataUrl); setError(null); setView("scan"); setPhase(0);
     const t = setInterval(() => setPhase((p) => Math.min(p + 1, PHASES.length - 1)), 1700);
     try {
-      const { diagnosis } = await postJSON<{ diagnosis: Diagnosis }>("/api/diagnose", { image: dataUrl, currency, skill, note });
-      const c: Case = { id: crypto.randomUUID(), createdAt: Date.now(), currency, photo: dataUrl, thumb: await thumb(dataUrl), diagnosis, done: diagnosis.steps.map(() => false), checks: {} };
+      const { diagnosis, model } = await postJSON<{ diagnosis: Diagnosis; model: string }>("/api/diagnose", { image: dataUrl, currency, skill, note });
+      const c: Case = { id: crypto.randomUUID(), createdAt: Date.now(), currency, photo: dataUrl, thumb: await thumb(dataUrl), diagnosis, done: diagnosis.steps.map(() => false), checks: {}, model };
       persist(c); setView("case");
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); setView("intake"); }
     finally { clearInterval(t); }
@@ -106,7 +106,7 @@ export default function App() {
                   </motion.div>
                 ))}
               </div>
-              <p className="mt-4 tick">Muse Spark 1.3 via Meta Model API · vision + structured output</p>
+              <p className="mt-4 tick">Meta vision model · schema-validated dossier</p>
             </motion.section>
           )}
           {view === "case" && current && (
@@ -121,7 +121,7 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
-      <footer className="relative z-10 mx-auto max-w-7xl px-5 pb-8 tick md:px-8">Mendoscope · built on Meta Muse Spark + Muse Image · estimates are guidance, not a warranty</footer>
+      <footer className="relative z-10 mx-auto max-w-7xl px-5 pb-8 tick md:px-8">Mendoscope · built on Meta models (Muse Spark · Llama 4) · estimates are guidance, not a warranty</footer>
     </div>
   );
 }
@@ -217,7 +217,7 @@ function CaseView({ c, onChange }: { c: Case; onChange: (c: Case) => void }) {
   return (
     <div className="grid gap-8 pt-4 lg:grid-cols-[1.1fr_1fr]">
       <div className="space-y-5 lg:sticky lg:top-4 lg:self-start">
-        <Overlay photo={c.after && tab === "after" ? c.after : c.photo} d={tab === "after" && c.after ? { ...d, hotspots: [] as never } as Diagnosis : d} active={hover} onHover={setHover} />
+        <Overlay photo={c.photo} d={d} active={hover} onHover={setHover} />
         <div className="grid gap-2">
           {d.hotspots.map((h, i) => (
             <motion.div key={i} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.8 + i * 0.12 }}
@@ -230,7 +230,7 @@ function CaseView({ c, onChange }: { c: Case; onChange: (c: Case) => void }) {
       </div>
 
       <div>
-        <div className="tick">case file · {new Date(c.createdAt).toLocaleDateString()} · {d.material}</div>
+        <div className="tick">case file · {new Date(c.createdAt).toLocaleDateString()} · {d.material}{c.model ? ` · read by ${c.model}` : ""}</div>
         <h2 className="mt-2 font-serif text-5xl leading-[1] tracking-tight">{d.object}</h2>
         <p className="mt-3 text-paper/75">{d.failure} <span className="text-paper/50">Root cause: {d.rootCause}</span></p>
 
@@ -256,7 +256,7 @@ function CaseView({ c, onChange }: { c: Case; onChange: (c: Case) => void }) {
         </div>
 
         <div className="mt-8 flex gap-1 border-b border-line/20 font-mono text-[11px] uppercase tracking-[.14em]">
-          {([["order", "Work order"], ["bench", `Workbench ${doneCount}/${d.steps.length}`], ["coach", "Ask the mender"], ["after", "After"]] as const).map(([k, l]) => (
+          {([["order", "Work order"], ["bench", `Workbench ${doneCount}/${d.steps.length}`], ["coach", "Ask the mender"], ["after", "Repair card"]] as const).map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} className={`relative px-4 py-3 ${tab === k ? "text-line" : "text-paper/55 hover:text-paper"}`}>
               {l}{tab === k && <motion.div layoutId="tab" className="absolute inset-x-0 -bottom-px h-0.5 bg-line" />}
             </button>
@@ -363,27 +363,49 @@ function Bench({ c, onChange }: { c: Case; onChange: (c: Case) => void }) {
 }
 
 function After({ c, onChange }: { c: Case; onChange: (c: Case) => void }) {
-  const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
-  const render = async () => {
-    setBusy(true); setErr(null);
-    try { const { image } = await postJSON<{ image: string }>("/api/render", { prompt: c.diagnosis.afterPrompt }); onChange({ ...c, after: image }); }
-    catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  const d = c.diagnosis; const v = VERDICT[d.verdict];
+  const card = useRef<HTMLDivElement>(null);
+  const [caps, setCaps] = useState<{ image: boolean } | null>(null);
+  const [busy, setBusy] = useState<"png" | "render" | null>(null); const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { fetch("/api/caps").then((r) => r.json()).then(setCaps).catch(() => setCaps({ image: false })); }, []);
+  const save = async () => {
+    if (!card.current) return; setBusy("png");
+    try { const { toPng } = await import("html-to-image"); const url = await toPng(card.current, { pixelRatio: 2, cacheBust: true });
+      const a = document.createElement("a"); a.href = url; a.download = `mendoscope-${d.object.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.png`; a.click(); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(null); }
   };
+  const render = async () => {
+    setBusy("render"); setErr(null);
+    try { const { image } = await postJSON<{ image: string }>("/api/render", { prompt: d.afterPrompt }); onChange({ ...c, after: image }); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(null); }
+  };
+  const done = c.done.filter(Boolean).length;
   return (
     <div>
-      <p className="text-sm text-paper/70">Not sure it&apos;s worth it? Muse Image renders what this object looks like once it&apos;s mended, from the dossier&apos;s description of your exact fault.</p>
-      <p className="mt-2 font-mono text-[11px] text-paper/45">prompt ▸ {c.diagnosis.afterPrompt}</p>
-      {c.after ? (
-        <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="mt-4 grid grid-cols-2 gap-2">
+      <p className="text-sm text-paper/70">A one-page repair card: take it to a repair café, send it to the friend who owns the clamps, or keep it as proof you saved this thing.</p>
+      <div ref={card} className="mt-4 overflow-hidden border border-line/40 bg-ink p-5" style={{ backgroundImage: "linear-gradient(rgba(127,211,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(127,211,255,.08) 1px,transparent 1px)", backgroundSize: "20px 20px" }}>
+        <div className="flex items-start justify-between gap-4">
+          <div><div className="tick">mendoscope · case file</div><div className="mt-1 font-serif text-3xl leading-none">{d.object}</div><div className="mt-1 text-xs text-paper/60">{d.failure}</div></div>
+          <div className="-rotate-6 border-2 px-2 py-1 font-mono text-xs font-bold tracking-[.18em]" style={{ color: v.color, borderColor: v.color }}>{c.mendedAt ? "MENDED" : v.word}</div>
+        </div>
+        <div className="mt-4 grid grid-cols-[1fr_1.2fr] gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <figure><img src={c.photo} alt="before" className="w-full border border-flare/40" /><figcaption className="tick mt-1">before</figcaption></figure>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <figure><img src={c.after} alt="after" className="w-full border border-moss/50" /><figcaption className="tick mt-1">after · muse image</figcaption></figure>
-        </motion.div>
-      ) : null}
-      <button onClick={render} disabled={busy} className="mt-4 bg-line px-5 py-2.5 font-mono text-xs font-semibold uppercase tracking-widest text-ink disabled:opacity-60">
-        {busy ? <span className="blink">rendering…</span> : c.after ? "Render again" : "Render the mended version"}</button>
-      {err && <div className="mt-3 font-mono text-xs text-flare">Render failed: {err}</div>}
+          <img src={c.after || c.photo} alt="" className="aspect-[4/3] w-full border border-line/30 object-cover" />
+          <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
+            <div><div className="tick">repair</div><div className="text-base text-moss">{money(d.repairCost.high, c.currency)}</div></div>
+            <div><div className="tick">replace</div><div className="text-base text-flare">{money(d.replaceCost.low, c.currency)}</div></div>
+            <div><div className="tick">time</div><div className="text-base">{d.totalMinutes} min</div></div>
+            <div><div className="tick">co₂e</div><div className="text-base">−{d.co2SavedKg} kg</div></div>
+            <div className="col-span-2"><div className="tick">progress</div><div className="text-base">{done}/{d.steps.length} steps · {Object.values(c.checks).filter((k) => k.status === "PASS").length} inspected</div></div>
+          </div>
+        </div>
+        <ol className="mt-4 space-y-1 text-xs text-paper/80">{d.steps.map((s, i) => <li key={i}><span className={c.done[i] ? "text-moss" : "text-line"}>{c.done[i] ? "✓" : i + 1}</span> {s.title}</li>)}</ol>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button onClick={save} disabled={!!busy} className="bg-line px-5 py-2.5 font-mono text-xs font-semibold uppercase tracking-widest text-ink disabled:opacity-60">{busy === "png" ? "saving…" : "Download card (PNG)"}</button>
+        {caps?.image && <button onClick={render} disabled={!!busy} className="border border-line px-5 py-2.5 font-mono text-xs font-semibold uppercase tracking-widest text-line disabled:opacity-60">{busy === "render" ? <span className="blink">rendering…</span> : "Render mended (Muse Image)"}</button>}
+      </div>
+      {err && <div className="mt-3 font-mono text-xs text-flare">{err}</div>}
     </div>
   );
 }
