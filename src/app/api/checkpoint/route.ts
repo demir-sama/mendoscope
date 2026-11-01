@@ -1,5 +1,6 @@
 import { generateObject } from "ai";
-import { Checkpoint, MODEL } from "@/lib/schema";
+import { Checkpoint } from "@/lib/schema";
+import { withMetaModel } from "@/lib/models";
 
 export const maxDuration = 60;
 
@@ -9,8 +10,8 @@ export async function POST(req: Request) {
     if (typeof image !== "string" || !image.startsWith("data:image/")) {
       return Response.json({ error: "Send a photo as a data URL." }, { status: 400 });
     }
-    const { object: result } = await generateObject({
-      model: MODEL,
+    const { result: { object: result }, model } = await withMetaModel((m) => generateObject({
+      model: m,
       schema: Checkpoint,
       system:
         "You are Mendoscope's inspector. You check a progress photo of a home repair against what the step should achieve. " +
@@ -25,8 +26,8 @@ export async function POST(req: Request) {
           ],
         },
       ],
-    });
-    return Response.json({ checkpoint: result });
+    }));
+    return Response.json({ checkpoint: result, model });
   } catch (e) {
     console.error(e);
     return Response.json({ error: e instanceof Error ? e.message : "Inspection failed" }, { status: 500 });

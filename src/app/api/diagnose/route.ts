@@ -1,5 +1,6 @@
 import { generateObject } from "ai";
-import { Diagnosis, MODEL } from "@/lib/schema";
+import { Diagnosis } from "@/lib/schema";
+import { withMetaModel } from "@/lib/models";
 
 export const maxDuration = 60;
 
@@ -9,8 +10,8 @@ export async function POST(req: Request) {
     if (typeof image !== "string" || !image.startsWith("data:image/")) {
       return Response.json({ error: "Send a photo as a data URL." }, { status: 400 });
     }
-    const { object, usage } = await generateObject({
-      model: MODEL,
+    const { result: { object, usage }, model } = await withMetaModel((m) => generateObject({
+      model: m,
       schema: Diagnosis,
       system:
         "You are Mendoscope, a master repairer (furniture, plumbing, textiles, bikes, electronics, ceramics). " +
@@ -28,8 +29,8 @@ export async function POST(req: Request) {
           ],
         },
       ],
-    });
-    return Response.json({ diagnosis: object, usage, model: MODEL });
+    }));
+    return Response.json({ diagnosis: object, usage, model });
   } catch (e) {
     console.error(e);
     return Response.json({ error: e instanceof Error ? e.message : "Diagnosis failed" }, { status: 500 });
