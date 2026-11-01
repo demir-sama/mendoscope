@@ -30,7 +30,7 @@ export async function withMetaModel<T>(fn: (m: LanguageModel, label: string) => 
     } catch (e) {
       lastErr = e;
       const msg = e instanceof Error ? e.message + " " + String((e as { responseBody?: string }).responseBody || "") : String(e);
-      if (!ACCESS.test(msg)) throw e;
+      if (!ACCESS.test(msg)) { if (e instanceof Error) e.message = `[${c.label}] ${e.message}`; throw e; }
       console.warn(`[mendoscope] ${c.id} unavailable: ${msg.slice(0, 160)}`);
     }
   }

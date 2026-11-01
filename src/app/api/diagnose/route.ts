@@ -1,4 +1,4 @@
-import { generateObject } from "ai";
+import { generateJSON } from "@/lib/json";
 import { Diagnosis } from "@/lib/schema";
 import { withMetaModel } from "@/lib/models";
 
@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     if (typeof image !== "string" || !image.startsWith("data:image/")) {
       return Response.json({ error: "Send a photo as a data URL." }, { status: 400 });
     }
-    const { result: { object, usage }, model } = await withMetaModel((m) => generateObject({
+    const { result: { object, usage }, model } = await withMetaModel((m) => generateJSON({
       model: m,
       schema: Diagnosis,
       system:
