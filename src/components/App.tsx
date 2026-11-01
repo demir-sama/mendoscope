@@ -389,7 +389,7 @@ function After({ c, onChange }: { c: Case; onChange: (c: Case) => void }) {
   return (
     <div>
       <p className="text-sm text-paper/70">A one-page repair card: take it to a repair café, send it to the friend who owns the clamps, or keep it as proof you saved this thing.</p>
-      <div ref={card} className="mt-4 overflow-hidden border border-line/40 bg-ink p-5" style={{ backgroundImage: "linear-gradient(rgba(127,211,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(127,211,255,.08) 1px,transparent 1px)", backgroundSize: "20px 20px" }}>
+      <div className="mt-4"><div ref={card} className="overflow-hidden border border-line/40 bg-ink p-5" style={{ backgroundImage: "linear-gradient(rgba(127,211,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(127,211,255,.08) 1px,transparent 1px)", backgroundSize: "20px 20px" }}>
         <div className="flex items-start justify-between gap-4">
           <div><div className="tick">mendoscope · case file</div><div className="mt-1 font-serif text-3xl leading-none">{d.object}</div><div className="mt-1 text-xs text-paper/60">{d.failure}</div></div>
           <div className="-rotate-6 border-2 px-2 py-1 font-mono text-xs font-bold tracking-[.18em]" style={{ color: v.color, borderColor: v.color }}>{c.mendedAt ? "MENDED" : v.word}</div>
@@ -406,7 +406,8 @@ function After({ c, onChange }: { c: Case; onChange: (c: Case) => void }) {
           </div>
         </div>
         <ol className="mt-4 space-y-1 text-xs text-paper/80">{d.steps.map((s, i) => <li key={i}><span className={c.done[i] ? "text-moss" : "text-line"}>{c.done[i] ? "✓" : i + 1}</span> {s.title}</li>)}</ol>
-      </div>
+        <div className="mt-3 tick">mendoscope-sama-5806.vercel.app</div>
+      </div></div>
       <div className="mt-4 flex flex-wrap gap-2">
         <button onClick={save} disabled={!!busy} className="bg-line px-5 py-2.5 font-mono text-xs font-semibold uppercase tracking-widest text-ink disabled:opacity-60">{busy === "png" ? "saving…" : "Download card (PNG)"}</button>
         {caps?.image && <button onClick={render} disabled={!!busy} className="border border-line px-5 py-2.5 font-mono text-xs font-semibold uppercase tracking-widest text-line disabled:opacity-60">{busy === "render" ? <span className="blink">rendering…</span> : "Render mended (Muse Image)"}</button>}
