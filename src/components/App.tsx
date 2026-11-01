@@ -2,7 +2,7 @@
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform, animate } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Diagnosis, Checkpoint } from "@/lib/schema";
-import { CURRENCIES, Case, loadCases, money, postJSON, saveCases, thumb, toDataUrl } from "@/lib/client";
+import { CURRENCIES, Case, gridded, loadCases, money, postJSON, saveCases, thumb, toDataUrl } from "@/lib/client";
 import { Overlay } from "./Overlay";
 import { Coach } from "./Coach";
 
@@ -50,8 +50,8 @@ export default function App() {
     setPhoto(dataUrl); setError(null); setView("scan"); setPhase(0);
     const t = setInterval(() => setPhase((p) => Math.min(p + 1, PHASES.length - 1)), 1700);
     try {
-      const { diagnosis, model } = await postJSON<{ diagnosis: Diagnosis; model: string }>("/api/diagnose", { image: dataUrl, currency, skill, note });
-      const c: Case = { id: crypto.randomUUID(), createdAt: Date.now(), currency, photo: dataUrl, thumb: await thumb(dataUrl), diagnosis, done: diagnosis.steps.map(() => false), checks: {}, model };
+      const { diagnosis, model, inspection } = await postJSON<{ diagnosis: Diagnosis; model: string; inspection: string }>("/api/diagnose", { image: dataUrl, grid: await gridded(dataUrl), currency, skill, note });
+      const c: Case = { id: crypto.randomUUID(), createdAt: Date.now(), currency, photo: dataUrl, thumb: await thumb(dataUrl), diagnosis, done: diagnosis.steps.map(() => false), checks: {}, model, inspection };
       persist(c); setView("case");
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); setView("intake"); }
     finally { clearInterval(t); }
@@ -226,6 +226,12 @@ function CaseView({ c, onChange }: { c: Case; onChange: (c: Case) => void }) {
               <div><div className="text-[15px] font-medium">{h.label} <span className="ml-1 tick">{h.severity}</span></div><div className="text-sm text-paper/65">{h.detail}</div></div>
             </motion.div>
           ))}
+          {c.inspection && (
+            <details className="panel px-4 py-3 text-sm">
+              <summary className="cursor-pointer tick">pass 1 · raw visual inspection</summary>
+              <pre className="mt-2 whitespace-pre-wrap font-mono text-[11.5px] leading-relaxed text-paper/65">{c.inspection}</pre>
+            </details>
+          )}
         </div>
       </div>
 

@@ -25,7 +25,7 @@ export function Overlay({ photo, d, active, onHover }: { photo: string; d: Diagn
         })}
       </svg>
       {d.hotspots.map((h, i) => {
-        const [x, y] = h.box;
+        const x = h.box[0] + h.box[2] / 2, y = h.box[1];
         const c = SEV[h.severity] || "#ff6b3d";
         return (
           <motion.button key={i} type="button" onMouseEnter={() => onHover(i)} onMouseLeave={() => onHover(null)} onFocus={() => onHover(i)}

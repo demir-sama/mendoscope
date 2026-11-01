@@ -25,7 +25,7 @@ export function money(n: number, cur: string) {
 export type Case = {
   id: string; createdAt: number; currency: string; photo: string; thumb: string;
   diagnosis: Diagnosis; done: boolean[]; checks: Record<number, { status: string; advice: string; observations: string[] }>;
-  after?: string; mendedAt?: number; model?: string;
+  after?: string; mendedAt?: number; model?: string; inspection?: string;
 };
 
 const KEY = "mendoscope.cases.v1";
@@ -41,4 +41,23 @@ export async function postJSON<T>(url: string, body: unknown): Promise<T> {
   const j = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
   if (!r.ok || j.error) throw new Error(j.error || `HTTP ${r.status}`);
   return j as T;
+}
+
+/** Draw a labelled 6x6 grid over the photo so the vision model can ground faults to cells. */
+export async function gridded(dataUrl: string, cols = 6, rows = 6): Promise<string> {
+  const img = new Image();
+  await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error("grid")); img.src = dataUrl; });
+  const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+  const g = c.getContext("2d")!; g.drawImage(img, 0, 0);
+  const cw = c.width / cols, ch = c.height / rows;
+  g.strokeStyle = "rgba(255,255,0,.9)"; g.lineWidth = Math.max(2, c.width / 400);
+  for (let i = 1; i < cols; i++) { g.beginPath(); g.moveTo(i * cw, 0); g.lineTo(i * cw, c.height); g.stroke(); }
+  for (let j = 1; j < rows; j++) { g.beginPath(); g.moveTo(0, j * ch); g.lineTo(c.width, j * ch); g.stroke(); }
+  const fs = Math.round(Math.min(cw, ch) * 0.2); g.font = `bold ${fs}px sans-serif`; g.textBaseline = "top";
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+    const label = String.fromCharCode(65 + i) + (j + 1); const x = i * cw + 6, y = j * ch + 6;
+    g.fillStyle = "rgba(0,0,0,.7)"; g.fillRect(x - 3, y - 3, g.measureText(label).width + 6, fs + 6);
+    g.fillStyle = "#ffff00"; g.fillText(label, x, y);
+  }
+  return c.toDataURL("image/jpeg", 0.8);
 }

@@ -10,6 +10,12 @@ export const Hotspot = z.object({
     .describe("Bounding box [x, y, width, height] as fractions 0-1 of the image (origin top-left)"),
 });
 
+export const GRID = { cols: 6, rows: 6 };
+export const ModelHotspot = Hotspot.omit({ box: true }).extend({
+  cells: z.array(z.string()).min(1).max(12).describe("Grid cells from the GRIDDED image that the damage covers, e.g. [\"C4\",\"D4\"]. Columns A-F left→right, rows 1-6 top→bottom. Only cells the damage actually touches."),
+  where: z.string().describe("Plain words for where in the frame the damage is, e.g. 'lower-right, where leg meets seat'"),
+});
+
 export const Step = z.object({
   title: z.string(),
   how: z.string().describe("2-3 precise sentences of instruction"),
@@ -39,6 +45,17 @@ export const Diagnosis = z.object({
   afterPrompt: z.string().describe("A vivid prompt describing a photo of this exact object after a careful, visible-but-beautiful repair, same angle and setting"),
 });
 export type Diagnosis = z.infer<typeof Diagnosis>;
+export const ModelDiagnosis = Diagnosis.omit({ hotspots: true }).extend({ hotspots: z.array(ModelHotspot).min(1).max(5) });
+
+export function cellsToBox(cells: string[]): number[] {
+  const pts = cells.map((c) => c.trim().toUpperCase().match(/^([A-Z])\s*([0-9]+)$/)).filter(Boolean) as RegExpMatchArray[];
+  if (!pts.length) return [0.35, 0.35, 0.3, 0.3];
+  const cols = pts.map((m) => Math.min(GRID.cols - 1, Math.max(0, m[1].charCodeAt(0) - 65)));
+  const rows = pts.map((m) => Math.min(GRID.rows - 1, Math.max(0, parseInt(m[2], 10) - 1)));
+  const x0 = Math.min(...cols) / GRID.cols, x1 = (Math.max(...cols) + 1) / GRID.cols;
+  const y0 = Math.min(...rows) / GRID.rows, y1 = (Math.max(...rows) + 1) / GRID.rows;
+  return [x0, y0, x1 - x0, y1 - y0];
+}
 
 export const Checkpoint = z.object({
   status: z.enum(["PASS", "RETRY", "STOP"]),
